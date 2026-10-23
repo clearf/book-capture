@@ -1,13 +1,17 @@
 /**
- * Mac Kindle App Screenshot Capture
+ * Kindle Desktop App Screenshot Capture (macOS and Windows)
  *
- * Captures all pages of a book from the Mac Kindle app as screenshots.
- * Uses AppleScript for app control and screencapture for window capture.
+ * Captures all pages of a book from the Kindle desktop app as screenshots.
+ * macOS: AppleScript for app control, screencapture for window capture.
+ * Windows: Win32 focus/keys and PrintWindow capture (see win32-backend.mjs);
+ * works with both the Store "Kindle" app and Legacy Kindle for PC.
+ * (Filename kept so existing commands keep working.)
  *
  * Usage: node capture-kindle-mac.mjs <BookID> [--horizontal] [--max-pages 500]
  *
  * Prerequisites:
- *   - macOS Accessibility permission for Terminal
+ *   - macOS: Accessibility permission for Terminal
+ *   - Windows: only one Kindle app open, its window left in front during capture
  *   - Kindle app installed and book already open
  */
 
@@ -20,6 +24,8 @@ import {
   getWindowIdByOwner,
   getWindowBounds,
   imagesMatch,
+  IS_WINDOWS,
+  keepAwake,
   pageImageName,
   parseArgs,
   sendKeystroke,
@@ -44,7 +50,7 @@ async function main() {
   // Kindle Mac app doesn't respond to arrow keys for page turns; use Page Down
   const nextKey = 'page down';
 
-  console.log(`\u{1F4D6} Mac Kindle Capture \u2014 Book: ${bookId}`);
+  console.log(`\u{1F4D6} Kindle Desktop Capture \u2014 Book: ${bookId}`);
   console.log(`\u{1F4D0} Direction: ${direction}`);
   console.log(`\u{1F4C4} Max pages: ${flags.maxPages}\n`);
 
@@ -69,10 +75,15 @@ async function main() {
     : await ensureCapturesDir(bookId);
   console.log(`\u{1F4C1} Output: ${outputDir}\n`);
 
-  // Focus the reading area: click left edge (avoids triggering Kindle center overlay)
-  // then press Escape to dismiss any lingering UI elements
-  console.log('Focusing reading area (click left edge + Escape)...');
-  try {
+  if (IS_WINDOWS) {
+    // activateApp already gave the window keyboard focus, and Page Down turns
+    // pages without a click. The Windows apps have edge tap zones, so a
+    // left-edge click risks turning back a page; skip the click and Escape.
+    await keepAwake();
+  } else try {
+    // Focus the reading area: click left edge (avoids triggering Kindle center overlay)
+    // then press Escape to dismiss any lingering UI elements
+    console.log('Focusing reading area (click left edge + Escape)...');
     const bounds = await getWindowBounds('Kindle');
     if (bounds) {
       // Click left 1/5 of the window, vertically centered (avoids center overlay)

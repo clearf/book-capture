@@ -37,9 +37,9 @@ Check stats in `raw_text.json`. If `vision-low` or `failed` pages exist, ask use
 
 Generate a unique `SESSION_ID` (first 8 chars of random hex) to avoid temp file collisions.
 
-Dispatch 4-8 parallel agents (subagent_type: `book-capture:ocr-reader`), each handling ~20-30 pages. Write to `/tmp/ocr_batch_<SESSION_ID>_NN.json`.
+Dispatch 4-8 parallel agents (subagent_type: `book-capture:ocr-reader`), each handling ~20-30 pages. Write to `<OUTPUT_DIR>/.ocr_batch_<SESSION_ID>_NN.json` (not `/tmp`, which differs between Bash and the Write tool on Windows).
 
-After agents complete, merge batch results from `/tmp/ocr_batch_<SESSION_ID>_*.json` back into `raw_text.json`. Clean up temp files.
+After agents complete, merge batch results from `<OUTPUT_DIR>/.ocr_batch_<SESSION_ID>_*.json` back into `raw_text.json`. Clean up the batch files.
 
 ## Step 3: Report
 

@@ -32,8 +32,8 @@ Parse `$ARGUMENTS` for optional pre-filled values. Then ask the user for any mis
 **Platform selection** (ask first, prominently):
 
 Present these choices:
-1. **Mac Kindle** — Amazon Kindle desktop app (uses screencapture + Page Down navigation)
-2. **Apple Books** — Apple Books app (uses screencapture + arrow key navigation)
+1. **Kindle desktop** — Amazon Kindle app on macOS or Windows (window capture + Page Down navigation)
+2. **Apple Books** — Apple Books app, macOS only (uses screencapture + arrow key navigation)
 3. **Kindle Cloud Reader** — Browser-based via Playwright (requires Amazon login)
 4. **PDF** — Image-based/scanned PDF files (uses Poppler pdftoppm)
 
@@ -72,17 +72,22 @@ If captures exist, ask the user: **Skip capture** (use existing) or **Re-capture
 
 Set `OUTPUT_DIR` = `<CAPTURES_BASE>/<BookID>`
 
-**kindle** (Mac Kindle app):
+**kindle** (Kindle desktop app, macOS or Windows):
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/scripts/capture-kindle-mac.mjs" <BookID> [--horizontal] --output-dir "<OUTPUT_DIR>"
 ```
-Remind user: open the book in **Amazon Kindle** app to the first page, ensure Accessibility permission for Terminal.
+Remind user: open the book in the Kindle app to the first page. On macOS, ensure Accessibility permission for Terminal.
 
 **Known Kindle Mac quirks:**
 - App name is `Amazon Kindle` (not `Kindle`)
 - Window ID detection uses CGWindowList via inline Swift
 - Page navigation uses **Page Down** key (arrow keys don't work reliably)
 - Dismiss startup dialogs first (script sends Escape automatically)
+
+**Kindle on Windows:**
+- Works with the Store "Kindle" app and Legacy Kindle for PC (both are `Kindle.exe`). Have only **one** of them open — with both open the script takes the larger window and warns.
+- No permissions needed. The script focuses the window and sends Page Down; it re-focuses Kindle if something steals focus, but tell the user not to type elsewhere during the run, and not to minimize Kindle (a minimized window has nothing to capture).
+- The script keeps the PC awake while it runs. The screen must stay unlocked: locking stops page turns.
 
 **books** (Apple Books):
 ```bash
@@ -94,13 +99,13 @@ Remind user: open the book in Apple Books to the first page, ensure Accessibilit
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/scripts/kindle-capture.mjs" <ASIN> [--horizontal] --output-dir "<OUTPUT_DIR>"
 ```
-Run in background. Guide user through login + signal (`touch /tmp/kindle-ready`).
+Run in background. Guide user through login, then create the signal file whose path the script prints (`touch "<signal path>"` — it is in the OS temp dir, so not `/tmp` on Windows). US books need `--region us`.
 
 **pdf** (Image-based PDF):
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/scripts/capture-pdf.mjs" "<pdf-path>" <BookID> [--dpi 200] --output-dir "<OUTPUT_DIR>"
 ```
-Prerequisites: Poppler installed (`brew install poppler`).
+Prerequisites: Poppler installed (`brew install poppler`; on Windows, Poppler for Windows with `pdftoppm`/`pdfinfo` on PATH).
 
 Monitor progress. When complete, report page count.
 
@@ -115,6 +120,8 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/extract-text.mjs" "<OUTPUT_DIR>" --concurren
 Output: `<OUTPUT_DIR>/raw_text.json` with per-page text and confidence scores.
 
 **IMPORTANT**: macOS Vision **cannot read vertical Japanese text** — it only captures horizontal headers/footers. For vertical text books, most pages will be flagged as low-confidence.
+
+On Windows the same script uses Windows OCR (`Windows.Media.Ocr`, built in). It recognizes one language per run — the first of `ja,en` with an installed OCR language pack, else the user's profile language. It has no native confidence score, so `confidence` is the share of tokens that look like real words; the 0.6 threshold flags the same kinds of page (figures, tables, empty pages).
 
 ### 3b. Re-read low-quality pages with agents
 
@@ -133,15 +140,17 @@ Agent prompt:
   Book: "<BookTitle>"
   Pages: page_XXX.webp through page_YYY.webp
   Directory: <OUTPUT_DIR>
-  Output: /tmp/ocr_batch_<SESSION_ID>_NN.json
+  Output: <OUTPUT_DIR>/.ocr_batch_<SESSION_ID>_NN.json
 ```
 
+Batch files go in `OUTPUT_DIR`, not `/tmp`, so the path means the same thing to Bash and the Write tool on every OS (on Windows, Git Bash's `/tmp` is not `C:\tmp`).
+
 After all agents complete, merge results back into `raw_text.json`:
-- Read all `/tmp/ocr_batch_<SESSION_ID>_*.json` files
+- Read all `<OUTPUT_DIR>/.ocr_batch_<SESSION_ID>_*.json` files
 - For re-read pages, replace vision-low entries with agent entries
 - Keep existing vision (good) entries unchanged
 - Write merged result back to `<OUTPUT_DIR>/raw_text.json`
-- Clean up: delete `/tmp/ocr_batch_<SESSION_ID>_*.json` files
+- Clean up: delete `<OUTPUT_DIR>/.ocr_batch_<SESSION_ID>_*.json` files
 
 ## Step 4: Generate Structured Markdown
 
@@ -278,7 +287,9 @@ Suggest the user:
 - **Accessibility permission denied**: Guide to System Settings > Privacy & Security > Accessibility
 - **Vision OCR compilation fails**: Check Xcode CLT (`xcode-select --install`)
 - **Vision OCR misses vertical text**: Expected — dispatch agents for those pages
-- **Kindle window not found**: Ensure book is open and visible
+- **Kindle window not found**: Ensure book is open and visible (on Windows: not minimized)
+- **Windows: pages don't advance**: Another window took focus or the screen locked — the run ends early as "end of book" after 3 identical pages. Re-capture from the first page with the screen kept unlocked
+- **Windows: OCR language error**: Add an OCR-capable language in Settings > Time & language > Language & region
 - **Capture stuck/timeout**: Use `--max-pages` limit or kill + resume OCR
 - **pdftoppm not found**: Install Poppler: `brew install poppler`
 - **PDF is encrypted**: Decrypt first (`qpdf --decrypt`)

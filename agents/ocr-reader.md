@@ -1,6 +1,6 @@
 ---
 name: ocr-reader
-description: Batch OCR re-reader for low-confidence book pages. Reads page screenshot images via multimodal Read tool and extracts text faithfully. Use when Vision OCR produces low-confidence results or for vertical Japanese text that macOS Vision cannot read.
+description: Batch OCR re-reader for low-confidence book pages. Reads page screenshot images via multimodal Read tool and extracts text faithfully. Use when Vision OCR (macOS) or Windows OCR produces low-confidence results or for vertical Japanese text that the local OCR cannot read.
 model: sonnet
 color: cyan
 tools:

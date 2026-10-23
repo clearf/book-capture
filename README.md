@@ -66,12 +66,13 @@ Or the plugin will auto-detect and prompt you on first use.
 
 ### Requirements
 
-- **macOS** (required for screencapture and Vision OCR)
+- **macOS** or **Windows 10/11** (Apple Books is macOS-only)
 - **[Claude Code](https://docs.anthropic.com/en/docs/claude-code)** CLI installed and authenticated
 - **Node.js 20+**
-- **Xcode Command Line Tools** (`xcode-select --install`)
-- **Accessibility permission** for Terminal/Claude Code (System Settings > Privacy & Security > Accessibility)
-- **Poppler** (PDF only): `brew install poppler`
+- macOS: **Xcode Command Line Tools** (`xcode-select --install`)
+- macOS: **Accessibility permission** for Terminal/Claude Code (System Settings > Privacy & Security > Accessibility)
+- Windows: nothing extra — window capture uses Win32 and OCR uses the built-in Windows OCR (needs an OCR language such as English installed, which is the default). Run Claude Code with Git Bash available.
+- **Poppler** (PDF only): `brew install poppler` (Windows: Poppler for Windows on PATH)
 
 ## Commands
 

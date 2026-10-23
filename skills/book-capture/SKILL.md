@@ -1,6 +1,6 @@
 ---
 name: book-capture
-description: Capture book pages from Mac Kindle, Apple Books, Kindle Cloud Reader, PDF files, or photos of a physical book, then OCR and generate structured Obsidian Markdown. Activates when user mentions capturing a book, Kindle screenshots, Apple Books capture, book OCR, book-to-markdown conversion, photographing a paper book, importing page photos, or extracting text from book page images.
+description: Capture book pages from the Kindle desktop app (macOS or Windows), Apple Books, Kindle Cloud Reader, PDF files, or photos of a physical book, then OCR and generate structured Obsidian Markdown. Activates when user mentions capturing a book, Kindle screenshots, Apple Books capture, book OCR, book-to-markdown conversion, photographing a paper book, importing page photos, or extracting text from book page images.
 version: 1.1.0
 ---
 
@@ -14,7 +14,7 @@ This plugin captures book pages as images, extracts text via OCR, and generates 
 
 | Command | Platform | When to use |
 |---------|----------|-------------|
-| `/book-capture:kindle` | Mac Kindle app | Capture from Amazon Kindle desktop app |
+| `/book-capture:kindle` | Kindle desktop app | Capture from the Amazon Kindle app (macOS or Windows) |
 | `/book-capture:books` | Apple Books | Capture from Apple Books app |
 | `/book-capture:cloud` | Kindle Cloud Reader | Capture via browser (Playwright) |
 | `/book-capture:pdf` | PDF file | Capture from scanned/image-based PDF |
@@ -32,8 +32,8 @@ This plugin captures book pages as images, extracts text via OCR, and generates 
 
 | Platform | Source ID | Key requirement |
 |----------|-----------|-----------------|
-| **Mac Kindle** | `kindle` | Amazon Kindle app open with book, Accessibility permission |
-| **Apple Books** | `books` | Apple Books app open with book, Accessibility permission |
+| **Kindle desktop** | `kindle` | Kindle app (macOS or Windows) open with book; macOS also needs Accessibility permission |
+| **Apple Books** | `books` | Apple Books app open with book, Accessibility permission (macOS only) |
 | **Kindle Cloud Reader** | `cloud` | Playwright browser, Amazon login |
 | **PDF** | `pdf` | Poppler installed (`brew install poppler`) |
 | **Photos** | `photos` | A folder of page photos (HEIC/JPEG), one per page |
@@ -48,10 +48,10 @@ If the user already has page screenshots and just needs OCR + markdown, use `/bo
 
 ## Prerequisites
 
-- **macOS** (required for screencapture and Vision OCR)
+- **macOS**, or **Windows 10/11** (Kindle desktop, Cloud Reader, PDF, photos; OCR via built-in Windows OCR)
 - **Node.js 20+**
-- **Xcode Command Line Tools** (for Vision OCR Swift compilation)
-- **Accessibility permission** for Terminal/Claude Code (for Kindle and Apple Books)
+- macOS: **Xcode Command Line Tools** (for Vision OCR Swift compilation)
+- macOS: **Accessibility permission** for Terminal/Claude Code (for Kindle and Apple Books)
 - **Poppler** (only for PDF source: `brew install poppler`)
 
 ## Settings

@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-A Claude Code plugin: captures book pages from Mac Kindle, Apple Books, Kindle Cloud Reader, PDF, or photos of a physical book, OCRs them, and generates thematic Obsidian Markdown. macOS only.
+A Claude Code plugin: captures book pages from Mac Kindle, Apple Books, Kindle Cloud Reader, PDF, or photos of a physical book, OCRs them, and generates thematic Obsidian Markdown. macOS; on Windows, the Kindle desktop app, Cloud Reader, PDF and photo sources plus OCR also work (Apple Books is macOS-only).
 
 ## Reference
 
@@ -32,6 +32,8 @@ node scripts/extract-text.mjs <captures-dir> --concurrency 5 --claude-threshold 
 `ensureVisionOCR` only checks that `scripts/vision-ocr` exists, so **after editing `vision-ocr.swift`, `rm scripts/vision-ocr` or run `setup.sh`** — only setup.sh compares mtimes. A stale binary otherwise keeps serving the old OCR silently. That binary and `scripts/node_modules/` are gitignored.
 
 macOS is load-bearing: `screencapture`, `osascript`, inline `swift`/`swiftc`, `mdls`. Poppler (`brew install poppler`) for PDF only.
+
+Windows support lives behind `IS_WINDOWS` branches inside the existing `book-capture-utils.mjs` exports, so callers are platform-blind: `scripts/win32-backend.mjs` (Win32 window lookup, focus, Page Down, PrintWindow capture, keep-awake — via `koffi` FFI, an optional dependency) and `scripts/win-ocr.ps1` (`Windows.Media.Ocr`, same JSON as `vision-ocr` but `confidence: null`; `estimateOcrConfidence` fills it from the text). Commands run under Git Bash there, so never write temp files to `/tmp` from a prompt — the Write tool does not see Git Bash's `/tmp`.
 
 ## Conventions
 

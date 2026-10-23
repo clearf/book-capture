@@ -7,6 +7,10 @@
  * - AppleScript execution
  * - Image similarity comparison (end-of-book detection)
  * - vision-ocr binary management
+ *
+ * On Windows the window, keystroke, capture and OCR helpers delegate to
+ * win32-backend.mjs (Win32 via koffi) and win-ocr.ps1 (Windows.Media.Ocr).
+ * The exported signatures are the same on both platforms.
  */
 
 import { execFile, exec } from 'child_process';
@@ -23,6 +27,15 @@ const execAsync = promisify(exec);
 // Base directory for all capture scripts
 export const FILES_DIR = import.meta.dirname;
 export const CAPTURES_DIR = process.env.BOOK_CAPTURES_DIR || path.join(FILES_DIR, 'book-captures');
+
+export const IS_WINDOWS = process.platform === 'win32';
+
+// Loaded on first use so macOS never touches koffi or user32.
+let winBackend;
+async function win() {
+  winBackend ??= await import('./win32-backend.mjs');
+  return winBackend;
+}
 
 // ─── Page Images ─────────────────────────────────────────────────────────
 //
@@ -118,6 +131,11 @@ export function sanitizeSwiftString(str) {
  * Uses macOS screencapture with -l (window ID) and -x (silent).
  */
 export async function captureWindow(windowId, outputPath) {
+  if (IS_WINDOWS) {
+    const { data, width, height } = (await win()).captureWindowPixels(windowId);
+    await sharp(data, { raw: { width, height, channels: 4 } }).png().toFile(outputPath);
+    return;
+  }
   let lastErr;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
@@ -169,6 +187,11 @@ export async function getWindowId(appName) {
  * Activate an application and bring it to the front.
  */
 export async function activateApp(appName) {
+  if (IS_WINDOWS) {
+    (await win()).activateApp(appName);
+    await sleep(1000);
+    return;
+  }
   await runAppleScript(`tell application "${appName}" to activate`);
   await sleep(1000); // Wait for app to come to front
 }
@@ -179,6 +202,7 @@ export async function activateApp(appName) {
  * @param {object} [modifiers] - Optional modifiers { command: true, shift: true }
  */
 export async function sendKeystroke(key, modifiers = {}) {
+  if (IS_WINDOWS) return (await win()).sendKeystroke(key, modifiers);
   const modList = [];
   if (modifiers.command) modList.push('command down');
   if (modifiers.shift) modList.push('shift down');
@@ -301,6 +325,7 @@ export async function imagesMatch(pathA, pathB) {
  * @throws {Error} If no matching window is found or Swift execution fails
  */
 export async function getWindowIdByOwner(ownerPattern, exact = false) {
+  if (IS_WINDOWS) return (await win()).getWindowIdByOwner(ownerPattern, exact);
   const comparison = exact
     ? `owner == "${ownerPattern}"`
     : `owner.contains("${ownerPattern}")`;
@@ -339,6 +364,7 @@ else { fputs("No window found matching '${ownerPattern}'\\n", stderr); exit(1) }
  * Get the bounds {x, y, width, height} of the largest on-screen window matching a name pattern.
  */
 export async function getWindowBounds(ownerPattern) {
+  if (IS_WINDOWS) return (await win()).getWindowBounds(ownerPattern);
   const swiftCode = `
 import CoreGraphics
 let windowList = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as! [[String: Any]]
@@ -373,11 +399,17 @@ for w in windowList {
 
 const SWIFT_SOURCE = path.join(FILES_DIR, 'vision-ocr.swift');
 const SWIFT_BINARY = path.join(FILES_DIR, 'vision-ocr');
+const WIN_OCR_SCRIPT = path.join(FILES_DIR, 'win-ocr.ps1');
 
 /**
  * Ensure the vision-ocr binary exists. Compile from Swift source if needed.
+ * On Windows there is nothing to compile; returns the win-ocr.ps1 path.
  */
 export async function ensureVisionOCR() {
+  if (IS_WINDOWS) {
+    await access(WIN_OCR_SCRIPT);
+    return WIN_OCR_SCRIPT;
+  }
   try {
     await access(SWIFT_BINARY);
     return SWIFT_BINARY;
@@ -400,6 +432,7 @@ export async function ensureVisionOCR() {
  * Run vision-ocr on an image file and return parsed JSON result.
  */
 export async function runVisionOCR(imagePath, languages = ['ja', 'en']) {
+  if (IS_WINDOWS) return runWindowsOCR(imagePath, languages);
   const binary = await ensureVisionOCR();
   const { stdout, stderr } = await execFileAsync(binary, [
     imagePath,
@@ -410,6 +443,49 @@ export async function runVisionOCR(imagePath, languages = ['ja', 'en']) {
     throw new Error(`Vision OCR error: ${stderr}`);
   }
   return JSON.parse(stdout);
+}
+
+/**
+ * Windows.Media.Ocr via win-ocr.ps1. Same result shape as vision-ocr, except the
+ * engine has no confidence score, so one is estimated from the text.
+ */
+async function runWindowsOCR(imagePath, languages) {
+  const script = await ensureVisionOCR();
+  let stdout;
+  try {
+    ({ stdout } = await execFileAsync('powershell.exe', [
+      '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+      '-File', script, path.resolve(imagePath), '--lang', languages.join(','),
+    ], { maxBuffer: 10 * 1024 * 1024, encoding: 'utf8' }));
+  } catch (err) {
+    throw new Error(`Windows OCR error: ${err.stderr || err.message}`);
+  }
+  const result = JSON.parse(stdout);
+  result.confidence = estimateOcrConfidence(result.text);
+  return result;
+}
+
+/**
+ * Stand-in for Vision's per-line confidence: the share of whitespace-separated
+ * tokens that look like real words or numbers (allowing surrounding punctuation).
+ * Clean book text scores ~0.9+; OCR of figures, tables or noise scores far lower,
+ * and empty text scores 0 — so the default 0.6 threshold still routes the same
+ * kinds of page to the ocr-reader agent.
+ */
+export function estimateOcrConfidence(text) {
+  const tokens = text.split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return 0;
+  const WORD = /^[(\[“"‘']*(\p{L}+(['’-]\p{L}+)*|\p{N}+([.,:]\p{N}+)*%?)[)\]”"’'.,;:!?…—-]*$/u;
+  const clean = tokens.filter(t => WORD.test(t)).length;
+  return parseFloat((clean / tokens.length).toFixed(3));
+}
+
+/**
+ * Keep the machine awake for the rest of this process. Windows only (on macOS the
+ * commands wrap capture in caffeinate); a no-op elsewhere.
+ */
+export async function keepAwake() {
+  if (IS_WINDOWS) (await win()).keepAwake();
 }
 
 // ─── Output Directory Management ─────────────────────────────────────────

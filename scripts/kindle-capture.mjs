@@ -8,7 +8,7 @@
  *   --horizontal  Use left-to-right navigation (for horizontal/横書き books)
  *                 Default is right-to-left (for vertical/縦書き Japanese books)
  *
- * Uses persistent browser profile. Signals via /tmp/kindle-ready.
+ * Uses persistent browser profile. Signals via a kindle-ready file (/tmp on macOS, the OS temp dir on Windows).
  */
 
 import { chromium } from 'playwright';
@@ -92,7 +92,7 @@ async function main() {
   const context = await chromium.launchPersistentContext(USER_DATA_DIR, {
     headless: false,
     viewport: { width: 1280, height: 900 },
-    locale: 'ja-JP',
+    locale: REGION === 'jp' ? 'ja-JP' : 'en-US',
     args: ['--disable-blink-features=AutomationControlled'],
   });
 
@@ -102,12 +102,13 @@ async function main() {
   await page.goto(KINDLE_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
   // Wait for user signal
-  const SIGNAL_FILE = '/tmp/kindle-ready';
+  // /tmp kept on macOS for existing habits; Windows has no /tmp outside Git Bash.
+  const SIGNAL_FILE = process.platform === 'win32' ? path.join(os.tmpdir(), 'kindle-ready') : '/tmp/kindle-ready';
   await unlink(SIGNAL_FILE).catch(() => {});
   console.log('\n⏸️  Waiting for you to be ready...');
   console.log('   1. Log in to Amazon (if needed)');
   console.log('   2. Navigate to the FIRST page to capture');
-  console.log('   3. Signal: touch /tmp/kindle-ready\n');
+  console.log(`   3. Signal: touch "${SIGNAL_FILE}"\n`);
   while (true) {
     try { await access(SIGNAL_FILE); await unlink(SIGNAL_FILE); break; }
     catch { await page.waitForTimeout(1000); }

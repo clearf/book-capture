@@ -12,7 +12,7 @@ Follow the full pipeline in `${CLAUDE_PLUGIN_ROOT}/commands/capture.md` with sou
 
 **Cloud-specific notes:**
 - Run capture in background
-- Guide user through Amazon login, then signal ready: `touch /tmp/kindle-ready`
+- Guide user through Amazon login, then signal ready by creating the signal file the script prints: `touch "<signal path>"` (OS temp dir — not `/tmp` on Windows)
 - `--region` flag: `jp` (default), `us`, `uk`, `de`, `fr`, `it`, `es`, `ca`, `au`, `in`, `br`
 - Playwright must be installed: `cd "${CLAUDE_PLUGIN_ROOT}/scripts" && npx playwright install chromium`
 
